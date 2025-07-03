@@ -593,9 +593,6 @@ comexec(t, tp, ap, flags)
 
 	switch (tp->type) {
 	  case CSHELL:			/* shell built-in */
-		for (int i = 0; ap[i] != NULL; i++) {
-			printf("\nap[%d]: %s\n", i, ap[i]);
-		}
 		rv = call_builtin(tp, ap);
 		break;
 
