@@ -593,6 +593,7 @@ comexec(t, tp, ap, flags)
 
 	switch (tp->type) {
 	  case CSHELL:			/* shell built-in */
+		printf("Aqui esta ap: %s", ap);
 		rv = call_builtin(tp, ap);
 		break;
 
