@@ -1800,13 +1800,17 @@ static struct proc * pick_proc(void) {
 
     // 1. Calcular total_tickets
     for (q = 0; q < NR_SCHED_QUEUES; q++) {
-        int count = 0;
-        struct proc *iter;
-        for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) { 
-            count++;
-        }
-        total_tickets += count * (NR_SCHED_QUEUES - q);
-    }
+		int count = 0;
+		struct proc *iter;
+		
+		for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) {
+			if (proc_is_runnable(iter)) {
+				count++;
+			}
+		}
+
+		total_tickets += count * (NR_SCHED_QUEUES - q);
+	}
 
     // 2. Fallback se não houver tickets
     if (total_tickets == 0) {
@@ -1827,10 +1831,18 @@ static struct proc * pick_proc(void) {
             int tickets_in_queue = count * weight;
             if (ticket <= tickets_in_queue) {
                 int index = (ticket - 1) / weight;
-                rp = rdy_head[q];
-                for (int i = 0; i < index && rp != NULL; i++) {
-                    rp = rp->p_nextready;
-                }
+                struct proc *iter = rdy_head[q];
+				int i = 0;
+				while (iter != NULL) {
+					if (proc_is_runnable(iter)) {
+						if (i == index) {
+							rp = iter;
+							break;
+						}
+						i++;
+					}
+					iter = iter->p_nextready;
+				}
                 break;
             } else {
                 ticket -= tickets_in_queue;
