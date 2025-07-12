@@ -1630,7 +1630,7 @@ void enqueue(
   /* Marcar tempo de chegada na fila USER_Q */
 	if (q == USER_Q && rp->chegada == 0) {
 		u64_t tempoAtual;
-		get_uptime(&tempoAtual);
+		getuptime(&tempoAtual);
 
 		rp->chegada = tempoAtual;
 	}
