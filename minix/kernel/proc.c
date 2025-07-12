@@ -1794,51 +1794,51 @@ static struct proc * pick_proc(void)
     register struct proc *rp = NULL;
     struct proc **rdy_head;
     int q;
-    int total_tickets = 0;
 
     rdy_head = get_cpulocal_var(run_q_head);
 
-    // 1. Calcular total de tickets (apenas processos realmente prontos)
-    for (q = 0; q < NR_SCHED_QUEUES; q++) {
-        struct proc *iter;
-        for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) {
-            if (proc_is_runnable(iter)) {
-                total_tickets += (NR_SCHED_QUEUES - q);
+    // 1. Verifica filas com prioridade maior (números menores que USER_Q)
+    for (q = 0; q < USER_Q; q++) {
+        for (rp = rdy_head[q]; rp != NULL; rp = rp->p_nextready) {
+            if (proc_is_runnable(rp)) {
+                if (priv(rp)->s_flags & BILLABLE)
+                    get_cpulocal_var(bill_ptr) = rp;
+                return rp;
             }
         }
     }
 
-    // 2. Se não há processos prontos, retorne NULL
+    // 2. Loteria apenas dentro da fila USER_Q
+    int total_tickets = 0;
+    struct proc *iter;
+    for (iter = rdy_head[USER_Q]; iter != NULL; iter = iter->p_nextready) {
+        if (proc_is_runnable(iter)) {
+            total_tickets++;
+        }
+    }
+
     if (total_tickets == 0) {
         return NULL;
     }
 
-    // 3. Sorteio do bilhete
-    int ticket = (simple_rand() % total_tickets) + 1;
-
-    // 4. Percorrer filas para encontrar o processo correspondente ao bilhete
-    for (q = 0; q < NR_SCHED_QUEUES; q++) {
-        int weight = NR_SCHED_QUEUES - q;
-        struct proc *iter;
-        for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) {
-            if (!proc_is_runnable(iter)) continue;
-            if (ticket <= weight) {
-                rp = iter;
-                goto done;
-            }
-            ticket -= weight;
+    int ticket = (simple_rand() % total_tickets);
+    int i = 0;
+    for (iter = rdy_head[USER_Q]; iter != NULL; iter = iter->p_nextready) {
+        if (!proc_is_runnable(iter)) continue;
+        if (i == ticket) {
+            rp = iter;
+            break;
         }
+        i++;
     }
 
-done:
-    // 5. Confirmação e registro do processo selecionado
     if (rp != NULL) {
         assert(proc_is_runnable(rp));
         if (priv(rp)->s_flags & BILLABLE)
             get_cpulocal_var(bill_ptr) = rp;
     }
 
-    return rp;  // pode retornar NULL se algo inesperado acontecer (nunca deve)
+    return rp;
 }
 
 /*===========================================================================*
