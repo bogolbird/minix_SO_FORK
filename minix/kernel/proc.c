@@ -1813,12 +1813,9 @@ static struct proc * pick_proc(void) {
 	}
 
     // 2. Fallback se não houver tickets
-    if (total_tickets == 0) {
-        rp = rdy_head[NR_SCHED_QUEUES - 1];
-        if (rp == NULL) {
-            rp = &get_cpulocal_var(idle_proc); 
-        }
-    } else {
+	if (total_tickets == 0) {
+		rp = &get_cpulocal_var(idle_proc); 
+	} else {
         // 3. Sortear bilhete
         int ticket = (simple_rand() % total_tickets) + 1;
         for (q = 0; q < NR_SCHED_QUEUES; q++) {
@@ -1851,19 +1848,15 @@ static struct proc * pick_proc(void) {
     }
 
     // 5. Fallback final para o processo ocioso
-    if (rp != NULL) {
-        assert(proc_is_runnable(rp));
-        if (priv(rp)->s_flags & BILLABLE)
-            get_cpulocal_var(bill_ptr) = rp;
-        return rp;
-    } else {
-        rp = &get_cpulocal_var(idle_proc); 
-        if (rp != NULL && proc_is_runnable(rp)) {
-            return rp;
-        } else {
-            panic("Nenhum processo para escalonar, incluindo ocioso");
-        }
+    if (rp == NULL || !proc_is_runnable(rp)) {
+    rp = &get_cpulocal_var(idle_proc);
+    if (!proc_is_runnable(rp)) {
+        panic("Nenhum processo para escalonar, incluindo ocioso");
     }
+}
+if (priv(rp)->s_flags & BILLABLE)
+    get_cpulocal_var(bill_ptr) = rp;
+return rp;
 }
 
 /*===========================================================================*
