@@ -1786,59 +1786,36 @@ int simple_rand(void) {
 }
 
 /*===========================================================================*
- *				pick_proc	Escalonador por Loteria			     * 
+ *				pick_proc			     * 
  *===========================================================================*/
-// Escalonador por loteria
 static struct proc * pick_proc(void)
 {
-    register struct proc *rp = NULL;
-    struct proc **rdy_head;
-    int q;
+/* Decide who to run now.  A new process is selected and returned.
+ * When a billable process is selected, record it in 'bill_ptr', so that the 
+ * clock task can tell who to bill for system time.
+ *
+ * This function always uses the run queues of the local cpu!
+ */
+  register struct proc *rp;			/* process to run */
+  struct proc **rdy_head;
+  int q;				/* iterate over queues */
 
-    rdy_head = get_cpulocal_var(run_q_head);
-
-    // 1. Verifica filas com prioridade maior (números menores que USER_Q)
-    for (q = 0; q < USER_Q; q++) {
-        for (rp = rdy_head[q]; rp != NULL; rp = rp->p_nextready) {
-            if (proc_is_runnable(rp)) {
-                if (priv(rp)->s_flags & BILLABLE)
-                    get_cpulocal_var(bill_ptr) = rp;
-                return rp;
-            }
-        }
-    }
-
-    // 2. Loteria apenas dentro da fila USER_Q
-    int total_tickets = 0;
-    struct proc *iter;
-    for (iter = rdy_head[USER_Q]; iter != NULL; iter = iter->p_nextready) {
-        if (proc_is_runnable(iter)) {
-            total_tickets++;
-        }
-    }
-
-    if (total_tickets == 0) {
-        return NULL;
-    }
-
-    int ticket = (simple_rand() % total_tickets);
-    int i = 0;
-    for (iter = rdy_head[USER_Q]; iter != NULL; iter = iter->p_nextready) {
-        if (!proc_is_runnable(iter)) continue;
-        if (i == ticket) {
-            rp = iter;
-            break;
-        }
-        i++;
-    }
-
-    if (rp != NULL) {
-        assert(proc_is_runnable(rp));
-        if (priv(rp)->s_flags & BILLABLE)
-            get_cpulocal_var(bill_ptr) = rp;
-    }
-
-    return rp;
+  /* Check each of the scheduling queues for ready processes. The number of
+   * queues is defined in proc.h, and priorities are set in the task table.
+   * If there are no processes ready to run, return NULL.
+   */
+  rdy_head = get_cpulocal_var(run_q_head);
+  for (q=0; q < NR_SCHED_QUEUES; q++) {	
+	if(!(rp = rdy_head[q])) {
+		TRACE(VF_PICKPROC, printf("cpu %d queue %d empty\n", cpuid, q););
+		continue;
+	}
+	assert(proc_is_runnable(rp));
+	if (priv(rp)->s_flags & BILLABLE)	 	
+		get_cpulocal_var(bill_ptr) = rp; /* bill for system time */
+	return rp;
+  }
+  return NULL;
 }
 
 /*===========================================================================*
