@@ -1789,8 +1789,8 @@ int simple_rand(void) {
  *				pick_proc	Escalonador por Loteria			     * 
  *===========================================================================*/
 // Escalonador por loteria
-static struct proc * pick_proc(void) {
-
+static struct proc * pick_proc(void)
+{
     register struct proc *rp = NULL;
     struct proc **rdy_head;
     int q;
@@ -1798,65 +1798,47 @@ static struct proc * pick_proc(void) {
 
     rdy_head = get_cpulocal_var(run_q_head);
 
-    // 1. Calcular total_tickets
+    // 1. Calcular total de tickets (apenas processos realmente prontos)
     for (q = 0; q < NR_SCHED_QUEUES; q++) {
-		int count = 0;
-		struct proc *iter;
-		
-		for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) {
-			if (proc_is_runnable(iter)) {
-				count++;
-			}
-		}
-
-		total_tickets += count * (NR_SCHED_QUEUES - q);
-	}
-
-    // 2. Fallback se não houver tickets
-	if (total_tickets == 0) {
-		rp = &get_cpulocal_var(idle_proc); 
-	} else {
-        // 3. Sortear bilhete
-        int ticket = (simple_rand() % total_tickets) + 1;
-        for (q = 0; q < NR_SCHED_QUEUES; q++) {
-            int count = 0;
-            struct proc *iter;
-            for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) { 
-                count++;
-            }
-            int weight = NR_SCHED_QUEUES - q;
-            int tickets_in_queue = count * weight;
-            if (ticket <= tickets_in_queue) {
-                int index = (ticket - 1) / weight;
-                struct proc *iter = rdy_head[q];
-				int i = 0;
-				while (iter != NULL) {
-					if (proc_is_runnable(iter)) {
-						if (i == index) {
-							rp = iter;
-							break;
-						}
-						i++;
-					}
-					iter = iter->p_nextready;
-				}
-                break;
-            } else {
-                ticket -= tickets_in_queue;
+        struct proc *iter;
+        for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) {
+            if (proc_is_runnable(iter)) {
+                total_tickets += (NR_SCHED_QUEUES - q);
             }
         }
     }
 
-    // 5. Fallback final para o processo ocioso
-    if (rp == NULL || !proc_is_runnable(rp)) {
-    rp = &get_cpulocal_var(idle_proc);
-    if (!proc_is_runnable(rp)) {
-        panic("Nenhum processo para escalonar, incluindo ocioso");
+    // 2. Se não há processos prontos, retorne NULL
+    if (total_tickets == 0) {
+        return NULL;
     }
-}
-if (priv(rp)->s_flags & BILLABLE)
-    get_cpulocal_var(bill_ptr) = rp;
-return rp;
+
+    // 3. Sorteio do bilhete
+    int ticket = (simple_rand() % total_tickets) + 1;
+
+    // 4. Percorrer filas para encontrar o processo correspondente ao bilhete
+    for (q = 0; q < NR_SCHED_QUEUES; q++) {
+        int weight = NR_SCHED_QUEUES - q;
+        struct proc *iter;
+        for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) {
+            if (!proc_is_runnable(iter)) continue;
+            if (ticket <= weight) {
+                rp = iter;
+                goto done;
+            }
+            ticket -= weight;
+        }
+    }
+
+done:
+    // 5. Confirmação e registro do processo selecionado
+    if (rp != NULL) {
+        assert(proc_is_runnable(rp));
+        if (priv(rp)->s_flags & BILLABLE)
+            get_cpulocal_var(bill_ptr) = rp;
+    }
+
+    return rp;  // pode retornar NULL se algo inesperado acontecer (nunca deve)
 }
 
 /*===========================================================================*
