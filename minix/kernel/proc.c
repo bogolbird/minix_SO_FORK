@@ -1779,6 +1779,12 @@ void dequeue(struct proc *rp)
 #endif
 }
 
+static unsigned next = 1;
+int simple_rand(void) {
+    next = next * 1103515245 + 12345;
+    return (unsigned)(next / 65536) % 32768;
+}
+
 /*===========================================================================*
  *				pick_proc	Escalonador por Loteria			     * 
  *===========================================================================*/
@@ -1810,7 +1816,7 @@ static struct proc * pick_proc(void) {
         }
     } else {
         // 3. Sortear bilhete
-        int ticket = (minix_rand() % total_tickets) + 1;
+        int ticket = (simple_rand() % total_tickets) + 1;
         for (q = 0; q < NR_SCHED_QUEUES; q++) {
             int count = 0;
             struct proc *iter;
