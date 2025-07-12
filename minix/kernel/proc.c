@@ -1810,7 +1810,7 @@ static struct proc * pick_proc(void)
     if (q == USER_Q) {
       struct proc *p;
       struct proc *maisAntigo = NULL;
-      u64_t tempoMaisAntigo = U64_MAX;
+      u64_t tempoMaisAntigo = (u64_t)ULLONG_MAX;
 
       for (p = rdy_head[q]; p != NULL; p = p->p_nextready) {
         if (!proc_is_runnable(p)) continue;
