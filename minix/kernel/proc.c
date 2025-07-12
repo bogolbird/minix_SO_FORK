@@ -1780,36 +1780,83 @@ void dequeue(struct proc *rp)
 }
 
 /*===========================================================================*
- *				pick_proc				     * 
+ *				pick_proc	Escalonador por Loteria			     * 
  *===========================================================================*/
-static struct proc * pick_proc(void)
-{
-/* Decide who to run now.  A new process is selected and returned.
- * When a billable process is selected, record it in 'bill_ptr', so that the 
- * clock task can tell who to bill for system time.
- *
- * This function always uses the run queues of the local cpu!
- */
-  register struct proc *rp;			/* process to run */
-  struct proc **rdy_head;
-  int q;				/* iterate over queues */
+static struct proc * pick_proc(void) {
+	register struct proc *rp = NULL;
+	struct proc **rdy_head;
+	int q;
+	int total_tickets = 0;
 
-  /* Check each of the scheduling queues for ready processes. The number of
-   * queues is defined in proc.h, and priorities are set in the task table.
-   * If there are no processes ready to run, return NULL.
-   */
-  rdy_head = get_cpulocal_var(run_q_head);
-  for (q=0; q < NR_SCHED_QUEUES; q++) {	
-	if(!(rp = rdy_head[q])) {
-		TRACE(VF_PICKPROC, printf("cpu %d queue %d empty\n", cpuid, q););
-		continue;
+	rdy_head = get_cpulocal_var(run_q_head);
+
+	// Calculo da quantidade total de tickets
+	for (q = 0; q < NR_SCHED_QUEUES; q++) {
+		int count = 0;
+		struct proc *iter;
+
+		for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) {
+			count++;
+		}
+
+		total_tickets += count * (NR_SCHED_QUEUES - q);
 	}
-	assert(proc_is_runnable(rp));
-	if (priv(rp)->s_flags & BILLABLE)	 	
-		get_cpulocal_var(bill_ptr) = rp; /* bill for system time */
-	return rp;
-  }
-  return NULL;
+
+	// Fallback se não houverem tickets
+	if (total_tickets == 0) {
+		rp = rdy_head[NR_SCHED_QUEUES - 1];
+
+		if (rp == NULL) {
+			rp = &get_cpulocal_var(idle_proc);
+		}
+	} else {
+	// Sortear um ticket
+		int ticket = (minix_rand() % total_tickets) + 1;
+		
+		for (q = 0; q < NR_SCHED_QUEUES; q++) {
+			int count = 0;
+			struct proc *iter;
+
+			for (iter = rdy_head[q]; iter != NULL; iter = iter->p_nextready) { 
+				count++;
+			}
+
+			int weight = NR_SCHED_QUEUES - q;
+			int tickets_in_queue = count * weight;
+
+			if (ticket <= tickets_in_queue) {
+				int index = (ticket - 1) / weight;
+				rp = rdy_head[q];
+
+				for (int i = 0; i < index && rp != NULL; i++) {
+					rp = rp->p_nextready; 
+				}
+
+				break;
+			} else {
+				ticket -= tickets_in_queue;
+			}
+		}
+	}
+
+	// Fallback para processos IDLE
+	if (rp != NULL) {
+		assert(proc_is_runnable(rp));
+
+		if (priv(rp)->s_flags & BILLABLE) { 
+			get_cpulocal_var(bill_ptr) = rp;
+
+			return rp;
+		} else {
+			rp = &get_cpulocal_var(idle_proc);
+
+			if (rp != NULL && proc_is_runnable(rp)) {
+				return rp;
+			} else {
+				panic("Nenhum processo para escalonar"); // Não deve chegar aqui
+			}
+		}
+	}
 }
 
 /*===========================================================================*
