@@ -1629,8 +1629,7 @@ void enqueue(
 
   /* Marcar tempo de chegada na fila USER_Q */
 	if (q == USER_Q && rp->chegada == 0) {
-		clock_t ticks;
-		getuptime(&ticks, NULL, NULL);
+		clock_t ticks = get_monotonic();
 		rp->chegada = (u64_t)ticks;
 	}
 
