@@ -1629,10 +1629,9 @@ void enqueue(
 
   /* Marcar tempo de chegada na fila USER_Q */
 	if (q == USER_Q && rp->chegada == 0) {
-		u64_t tempoAtual;
-		getuptime(&tempoAtual);
-
-		rp->chegada = tempoAtual;
+		clock_t ticks;
+		getuptime(&ticks, NULL, NULL);
+		rp->chegada = (u64_t)ticks;
 	}
 
   if (cpuid == rp->p_cpu) {
