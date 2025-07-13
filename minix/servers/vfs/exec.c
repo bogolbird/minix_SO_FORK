@@ -247,7 +247,7 @@ int pm_exec(vir_bytes path, size_t path_len, vir_bytes frame, size_t frame_len,
   strlcpy(firstexec, fullpath, PATH_MAX);
 
   /* Exibir comando após chamada do sistema */
-  printf("Executando: %s\n", fullpath);
+//   printf("Executando: %s\n", fullpath);
 
   /* Get_read_vp will return an opened vn in execi.
    * if necessary it releases the existing vp so we can
