@@ -135,8 +135,6 @@ void proc_init(void)
 		rp->p_priority = 0;		/* no priority */
 		rp->p_quantum_size_ms = 0;	/* no quantum size */
 
-		rp->chegada = 0;
-
 		/* arch-specific initialization */
 		arch_proc_reset(rp);
 	}
@@ -1627,12 +1625,6 @@ void enqueue(
       rp->p_nextready = NULL;		/* mark new end */
   }
 
-  /* Marcar tempo de chegada na fila USER_Q */
-	if (q == USER_Q && rp->chegada == 0) {
-		clock_t ticks = get_monotonic();
-		rp->chegada = (u64_t)ticks;
-	}
-
   if (cpuid == rp->p_cpu) {
 	  /*
 	   * enqueueing a process with a higher priority than the current one,
@@ -1794,56 +1786,35 @@ int simple_rand(void) {
 }
 
 /*===========================================================================*
- *				pick_proc		FCFS	     * 
+ *				pick_proc			     * 
  *===========================================================================*/
-// Escalonamento primeiro a chegar primeiro a ser servido
 static struct proc * pick_proc(void)
 {
-  register struct proc *rp;         /* process to run */
+/* Decide who to run now.  A new process is selected and returned.
+ * When a billable process is selected, record it in 'bill_ptr', so that the 
+ * clock task can tell who to bill for system time.
+ *
+ * This function always uses the run queues of the local cpu!
+ */
+  register struct proc *rp;			/* process to run */
   struct proc **rdy_head;
-  int q;                            /* iterate over queues */
+  int q;				/* iterate over queues */
 
+  /* Check each of the scheduling queues for ready processes. The number of
+   * queues is defined in proc.h, and priorities are set in the task table.
+   * If there are no processes ready to run, return NULL.
+   */
   rdy_head = get_cpulocal_var(run_q_head);
-  for (q = 0; q < NR_SCHED_QUEUES; q++) {
-    if (q == USER_Q) {
-      struct proc *p;
-      struct proc *maisAntigo = NULL;
-      u64_t tempoMaisAntigo = (u64_t)ULLONG_MAX;
-
-      for (p = rdy_head[q]; p != NULL; p = p->p_nextready) {
-        if (!proc_is_runnable(p)) continue;
-
-        if (p->chegada < tempoMaisAntigo) {
-          tempoMaisAntigo = p->chegada;
-          maisAntigo = p;
-        }
-      }
-
-      if (!maisAntigo) {
-        TRACE(VF_PICKPROC, printf("cpu %d queue %d empty\n", cpuid, q););
-        continue;
-      }
-
-      assert(proc_is_runnable(maisAntigo));
-      if (priv(maisAntigo)->s_flags & BILLABLE)
-        get_cpulocal_var(bill_ptr) = maisAntigo;
-      
-      return maisAntigo;
-
-    } else {
-      if (!(rp = rdy_head[q])) {
-        TRACE(VF_PICKPROC, printf("cpu %d queue %d empty\n", cpuid, q););
-        continue;
-      }
-
-      assert(proc_is_runnable(rp));
-      if (priv(rp)->s_flags & BILLABLE)
-        get_cpulocal_var(bill_ptr) = rp;
-
-      return rp;
-    }
+  for (q=0; q < NR_SCHED_QUEUES; q++) {	
+	if(!(rp = rdy_head[q])) {
+		TRACE(VF_PICKPROC, printf("cpu %d queue %d empty\n", cpuid, q););
+		continue;
+	}
+	assert(proc_is_runnable(rp));
+	if (priv(rp)->s_flags & BILLABLE)	 	
+		get_cpulocal_var(bill_ptr) = rp; /* bill for system time */
+	return rp;
   }
-
   return NULL;
 }
 
